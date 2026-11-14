@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.1 (2026-11-14)
+
+- Oppsett saves a name, an amount, "every month" or a colour without reloading the page, the
+  way the cards in the month already did. Language and currency still reload, since every
+  word and number changes.
+
 ## 0.3.0 (2026-11-14)
 
 - Plan and Oversikt sit in the top bar on every page, next to Oppsett, and keep the month shown.

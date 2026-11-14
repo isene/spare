@@ -22,7 +22,7 @@ from markupsafe import Markup
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import check_password_hash, generate_password_hash
 
-__version__ = "0.3.0"
+__version__ = "0.3.1"
 
 ROOT = Path(__file__).resolve().parent
 

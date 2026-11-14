@@ -1,5 +1,6 @@
-// spare: save a card the moment its amount changes, keep the scroll place when the page
-// reloads, and let a card type be dragged into the month as well as tapped. No timers.
+// spare: save a field, box or choice the moment it changes, without a page reload; keep the
+// scroll place when the page does reload; let a card type be dragged into the month as well
+// as tapped. No timers.
 
 const SPOT = "spare-scroll";
 
@@ -23,9 +24,12 @@ function restoreScroll() {
 restoreScroll();
 addEventListener("load", restoreScroll);
 
-// A card in the month saves in the background, so the keyboard and the cursor stay where they
-// are. The server answers with the month page, and the sums, balances and chart come from it.
-async function saveCard(form) {
+// A form saves in the background, so the keyboard and the cursor stay where they are. The
+// server answers with the page, and the parts marked data-fresh (sums, balances, chart) come
+// from it. Language and currency change every word and number, so those still reload.
+const quiet = (form) => form.matches("[data-live], [data-autosubmit]:not([data-reload])");
+
+async function save(form) {
   const body = new FormData(form);
   const sent = new URLSearchParams(body).toString();
   if (form.dataset.sent === sent) return; // Enter and the change it causes send it once
@@ -46,15 +50,16 @@ async function saveCard(form) {
 document.addEventListener("change", (e) => {
   const form = e.target.closest("form");
   if (!form) return;
-  if (form.matches("[data-live]")) saveCard(form);
+  if (e.target.name === "colour") form.className = form.className.replace(/\bc-\S+/, "c-" + e.target.value);
+  if (quiet(form)) save(form);
   else if (form.matches("[data-autosubmit]")) form.requestSubmit();
 });
 
 document.addEventListener("submit", (e) => {
   const form = e.target;
-  if (form.matches("[data-live]") && !(e.submitter && e.submitter.name)) {
-    e.preventDefault(); // Enter in a card saves it; only the delete button reloads the page
-    saveCard(form);
+  if (quiet(form) && !(e.submitter && e.submitter.name)) {
+    e.preventDefault(); // Enter in a field saves it; only a named button (delete, remove) reloads
+    save(form);
     return;
   }
   saveScroll();
