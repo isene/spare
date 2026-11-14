@@ -22,7 +22,7 @@ from markupsafe import Markup
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import check_password_hash, generate_password_hash
 
-__version__ = "0.3.1"
+__version__ = "0.4.0"
 
 ROOT = Path(__file__).resolve().parent
 
@@ -167,6 +167,34 @@ WORDS = {
     "plan_help": (
         "Faste utgifter og vanlige beløp endrer du i Oppsett. Annet du bruker, legger du inn i Oversikt.",
         "Change fixed costs and usual amounts in Setup. Put other spending in Overview.",
+    ),
+    "tour": ("Vis meg rundt", "Show me around"),
+    "tour_next": ("Neste", "Next"),
+    "tour_done": ("Ferdig", "Done"),
+    "tour_skip": ("Hopp over", "Skip"),
+    "tour_1": (
+        "Velkommen! Her ser du hva du kan bruke denne måneden, når alt annet er trukket fra.",
+        "Welcome! This shows what you can spend this month, once everything else is taken off.",
+    ),
+    "tour_2": (
+        "Trykk på en farget knapp for å legge inn en inntekt, og skriv beløpet. Alt lagres med en gang.",
+        "Tap a coloured button to add income, then type the amount. Everything saves at once.",
+    ),
+    "tour_3": (
+        "Faste utgifter, som husleie, kommer inn i hver ny måned av seg selv. Du velger dem i Oppsett.",
+        "Fixed costs, such as rent, come into each new month by themselves. You pick them in Setup.",
+    ),
+    "tour_4": (
+        "Skriv hva du vil spare denne måneden. Det går til sparekontoen.",
+        "Type what you want to save this month. It goes to your savings account.",
+    ),
+    "tour_5": (
+        "Annet du bruker, som mat og klær, legger du inn i Oversikt. Der ser du også hva du har spart i år.",
+        "Put other spending, such as food and clothes, in Overview. It also shows what you saved this year.",
+    ),
+    "tour_6": (
+        "I Oppsett velger du korttyper, kontoer, språk og valuta. Omvisningen finner du nederst på Plan.",
+        "In Setup you pick card types, accounts, language and currency. The tour is at the foot of Plan.",
     ),
     "rest_here": ("Resten går hit", "The rest goes here"),
     "usual_amount": ("Vanlig beløp", "Usual amount"),

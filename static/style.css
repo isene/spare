@@ -148,7 +148,15 @@ main { padding: 16px; }
 .newrow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
 .newrow label { display: flex; align-items: center; gap: 6px; }
 .newrow .amount { width: 9em; }
-.typerow label.check input, .newrow .check input { width: auto; accent-color: var(--c); }
+/* A drawn tick box: the browser's own puts a white tick on the light colours of dark mode */
+label.check input[type=checkbox] { appearance: none; display: inline-grid; place-content: center;
+  width: 20px; height: 20px; margin: 0; padding: 0; border: 2px solid var(--c, var(--brand));
+  border-radius: 5px; background: var(--panel); cursor: pointer; }
+label.check input[type=checkbox]::before { content: ""; width: 12px; height: 12px; background: var(--on);
+  clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0, 43% 62%); visibility: hidden; }
+label.check input[type=checkbox]:checked { background: var(--c, var(--brand)); }
+label.check input[type=checkbox]:checked::before { visibility: visible; }
+label.check input[type=checkbox]:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
 
 /* Login, invite, password */
 .box { display: grid; gap: 12px; max-width: 420px; margin: 32px auto; padding: 20px;
@@ -179,3 +187,12 @@ td { padding: 8px 10px 8px 0; border-bottom: 1px solid var(--line); overflow-wra
   .cols.two { display: grid; grid-template-columns: 1fr; margin: 0; padding: 0; overflow: visible; }
 }
 .card input::placeholder { color: var(--fg); opacity: .65; }
+
+/* The tour: a box at the bottom, and a ring around the part it explains */
+.tour { position: fixed; inset: auto 16px 16px; z-index: 40; max-width: 480px; margin: 0 auto;
+  padding: 14px 16px; border: 2px solid var(--yellow); border-radius: 12px; background: var(--panel);
+  color: var(--fg); }
+.tour p { margin: 0 0 12px; }
+.tour div { display: flex; align-items: center; gap: 16px; }
+.toured { outline: 3px solid var(--yellow); outline-offset: 4px; }
+header .toured { outline-color: #f6eec9; }

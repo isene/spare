@@ -25,6 +25,8 @@ with this month's income, fixed costs and saving, how much can I still spend?
 - **Language and money**: Norwegian or English, and NOK, EUR or USD.
 - **Phone**: on a narrow screen the three columns sit side by side; swipe
   between them, or tap the coloured tabs.
+- **Tour**: the first visit to Plan shows what each part does, one step at a
+  time. "Show me around" at the foot of Plan starts it again.
 - **Light and dark**: follows the phone or computer, with a switch at the top.
 - **Login**: password plus a six-digit code from an authenticator app. Only
   the admin makes users, and each user sees only their own budget.

@@ -1,6 +1,6 @@
 // spare: save a field, box or choice the moment it changes, without a page reload; keep the
 // scroll place when the page does reload; let a card type be dragged into the month as well
-// as tapped. No timers.
+// as tapped; show a short tour on the first visit. No timers.
 
 const SPOT = "spare-scroll";
 
@@ -132,3 +132,43 @@ document.addEventListener("click", (e) => {
   }
   for (const help of document.querySelectorAll(".install p")) help.hidden = help.id !== button.dataset.install;
 });
+
+// The tour: on the first visit to the plan, a box at the bottom explains one part at a time
+// and rings it. "Show me around" at the foot of the plan starts it again.
+const tour = document.getElementById("tour");
+if (tour) {
+  const steps = [...tour.querySelectorAll("[data-for]")];
+  let at = -1;
+  const show = (i) => {
+    for (const old of document.querySelectorAll(".toured")) old.classList.remove("toured");
+    steps.forEach((step, n) => (step.hidden = n !== i));
+    at = i;
+    if (i < 0 || i >= steps.length) {
+      tour.close();
+      try {
+        localStorage.setItem("spare-tour", "seen");
+      } catch (e) {}
+      return;
+    }
+    const part = document.querySelector(steps[i].dataset.for);
+    if (part) {
+      part.classList.add("toured");
+      part.scrollIntoView({ block: "center" });
+    }
+    const last = i === steps.length - 1;
+    tour.querySelector("[data-next]").textContent = last ? tour.dataset.wordDone : tour.dataset.wordNext;
+    if (!tour.open) tour.show();
+  };
+  tour.addEventListener("click", (e) => {
+    if (e.target.closest("[data-next]")) show(at + 1);
+    if (e.target.closest("[data-skip]")) show(-1);
+  });
+  document.addEventListener("click", (e) => {
+    if (e.target.closest("[data-tour]")) show(0);
+  });
+  let seen = "seen";
+  try {
+    seen = localStorage.getItem("spare-tour");
+  } catch (e) {}
+  if (!seen) show(0);
+}

@@ -187,3 +187,13 @@ def test_every_page_links_to_both_screens_and_the_app_can_be_installed(monkeypat
     assert app["display"] == "standalone"
     for icon in app["icons"]:
         assert spare.app.test_client().get(icon["src"]).status_code == 200
+
+
+def test_the_plan_has_a_tour_that_rings_parts_on_the_page(monkeypatch):
+    monkeypatch.setattr(spare, "this_month", lambda: "2026-11")
+    client, _ = user("tor@example.com", "Tor")
+    page = client.get("/m/2026-11").data.decode()
+    parts = re.findall(r'data-for="#([\w-]+)"', page)
+    assert len(parts) == 6 and "Vis meg rundt" in page
+    for part in parts:
+        assert f'id="{part}"' in page  # each step rings something that is there

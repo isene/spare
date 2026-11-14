@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.0 (2026-11-15)
+
+- A short tour on the first visit to Plan rings one part at a time and says what it does.
+  "Vis meg rundt" at the foot of Plan starts it again.
+- The "every month" tick box is drawn in the card's colour, so the tick shows in dark mode.
+
 ## 0.3.1 (2026-11-14)
 
 - Oppsett saves a name, an amount, "every month" or a colour without reloading the page, the
