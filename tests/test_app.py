@@ -172,3 +172,16 @@ def test_the_qr_code_scales_and_the_demo_login_is_off():
     svg = page[page.index("<svg") : page.index(">", page.index("<svg"))]
     assert "viewBox" in svg and "width=" not in svg  # a fixed size gets cut off when shrunk
     assert spare.app.test_client().get("/demo").status_code == 404
+
+
+def test_every_page_links_to_both_screens_and_the_app_can_be_installed(monkeypatch):
+    monkeypatch.setattr(spare, "this_month", lambda: "2026-11")
+    client, _ = user("yan@example.com", "Yan")
+    page = client.get("/setup").data.decode()
+    assert 'href="/m/2026-11"' in page and 'href="/m/2026-11/cards"' in page
+    assert 'href="/m/2026-12/cards"' in client.get("/m/2026-12").data.decode()  # the month shown
+    assert 'rel="manifest"' in page
+    app = spare.app.test_client().get("/static/manifest.json").get_json()  # no login needed
+    assert app["display"] == "standalone"
+    for icon in app["icons"]:
+        assert spare.app.test_client().get(icon["src"]).status_code == 200

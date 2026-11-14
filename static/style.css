@@ -71,6 +71,7 @@ header { display: flex; flex-wrap: wrap; justify-content: space-between; align-i
 header nav { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
 header nav form.inline { display: flex; gap: 14px; }
 header a, header button.link { color: #dff3e7; text-decoration: none; }
+header a.on { color: #fff; font-weight: 700; text-decoration: underline; text-underline-offset: 6px; }
 .brand { display: flex; align-items: center; gap: 8px; color: #fff; font-weight: 700; font-size: 22px; }
 .brand img { width: 28px; height: 28px; }
 .to-dark { display: var(--to-dark); }
@@ -86,10 +87,6 @@ main { padding: 16px; }
 .saved { margin: 0 0 0 auto; font-size: 22px; font-weight: 700; }
 .saved.up { color: var(--up); }
 .saved.down { color: var(--down); }
-.screens { display: flex; gap: 8px; }
-.screens a { padding: 4px 14px; border-radius: 999px; background: var(--t); color: var(--c);
-  font-weight: 700; text-decoration: none; }
-.screens a.on { background: var(--c); color: var(--on); }
 .tabs { display: none; }
 .cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: start; }
 .cols.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }

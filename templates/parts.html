@@ -4,10 +4,6 @@
   <a class="step" href="{{ url_for(request.endpoint, month=prev) }}" aria-label="{{ t('prev') }}">‹</a>
   <h1>{{ name|capitalize }} {{ year }}</h1>
   <a class="step" href="{{ url_for(request.endpoint, month=next) }}" aria-label="{{ t('next') }}">›</a>
-  <nav class="screens">
-    <a class="c-green{{ ' on' if request.endpoint == 'month' }}" href="{{ url_for('month', month=month) }}">{{ t('plan') }}</a>
-    <a class="c-blue{{ ' on' if request.endpoint == 'cards' }}" href="{{ url_for('cards', month=month) }}">{{ t('overview') }}</a>
-  </nav>
   {{ caller() if caller }}
 </div>
 {% endmacro %}

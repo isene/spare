@@ -22,7 +22,7 @@ from markupsafe import Markup
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import check_password_hash, generate_password_hash
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 ROOT = Path(__file__).resolve().parent
 
@@ -525,6 +525,7 @@ def template_values():
         "months": MONTHS[LANGS.index(lang())],
         "COLOURS": COLOURS,
         "version": __version__,
+        "this_month": this_month(),
     }
 
 

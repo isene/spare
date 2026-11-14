@@ -29,6 +29,19 @@ with this month's income, fixed costs and saving, how much can I still spend?
 - **Login**: password plus a six-digit code from an authenticator app. Only
   the admin makes users, and each user sees only their own budget.
 
+## Install it as an app
+
+spare installs from the browser, with its own icon and window. It needs the
+https address of a server.
+
+- **Chrome or Edge, on Windows or Mac**: click the install button at the right
+  end of the address bar.
+- **Safari on a Mac**: File, then Add to Dock.
+- **iPhone**: Safari's share button, then Add to Home Screen.
+
+The app always shows the server's latest version, so there is nothing to
+update.
+
 ## Run it on your own machine
 
 ```sh

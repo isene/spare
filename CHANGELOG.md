@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.0 (2026-11-14)
+
+- Plan and Oversikt sit in the top bar on every page, next to Oppsett, and keep the month shown.
+- spare can be installed as an app from Chrome, Edge or Safari, on a laptop or a phone.
+
 ## 0.2.0 (2026-11-14)
 
 - A new main screen, Plan: income, fixed costs, what you save and other spending, and at the
