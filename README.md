@@ -32,7 +32,8 @@ with this month's income, fixed costs and saving, how much can I still spend?
 ## Install it as an app
 
 spare installs from the browser, with its own icon and window. It needs the
-https address of a server.
+https address of a server. The front page has a download button for Windows
+and one for Mac, which install it or show how.
 
 - **Chrome or Edge, on Windows or Mac**: click the install button at the right
   end of the address bar.

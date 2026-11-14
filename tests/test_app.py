@@ -181,6 +181,8 @@ def test_every_page_links_to_both_screens_and_the_app_can_be_installed(monkeypat
     assert 'href="/m/2026-11"' in page and 'href="/m/2026-11/cards"' in page
     assert 'href="/m/2026-12/cards"' in client.get("/m/2026-12").data.decode()  # the month shown
     assert 'rel="manifest"' in page
+    front = spare.app.test_client().get("/login").data.decode()
+    assert "Last ned for Windows" in front and "Last ned for Mac" in front
     app = spare.app.test_client().get("/static/manifest.json").get_json()  # no login needed
     assert app["display"] == "standalone"
     for icon in app["icons"]:

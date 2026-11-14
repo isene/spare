@@ -108,3 +108,22 @@ document.addEventListener(
   },
   true
 );
+
+// The download buttons on the front page. Chrome and Edge install the app when asked;
+// Safari and the rest show the steps to do it by hand.
+let installer = null;
+addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();
+  installer = e;
+});
+
+document.addEventListener("click", (e) => {
+  const button = e.target.closest("[data-install]");
+  if (!button) return;
+  if (installer) {
+    installer.prompt();
+    installer = null;
+    return;
+  }
+  for (const help of document.querySelectorAll(".install p")) help.hidden = help.id !== button.dataset.install;
+});

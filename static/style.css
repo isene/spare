@@ -158,6 +158,10 @@ main { padding: 16px; }
 .box label { display: grid; gap: 4px; }
 .box p { margin: 0; }
 .tagline { color: var(--brand); font-weight: 700; }
+.install { display: flex; flex-wrap: wrap; gap: 8px; max-width: 420px; margin: -16px auto 32px; }
+.install button { flex: 1; background: var(--c); }
+.install p { flex-basis: 100%; margin: 0; }
+@media (display-mode: standalone) { .install { display: none; } }
 .qr svg { display: block; width: 220px; max-width: 100%; background: #fff; border-radius: 8px; }
 table { border-collapse: collapse; margin-top: 16px; width: 100%; }
 td { padding: 8px 10px 8px 0; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }

@@ -107,6 +107,16 @@ WORDS = {
     "password": ("Passord", "Password"),
     "code": ("Koden fra appen på telefonen", "The code from the app on your phone"),
     "tagline": ("Et enkelt budsjett, måned for måned.", "A simple budget, month by month."),
+    "install_win": ("Last ned for Windows", "Download for Windows"),
+    "install_mac": ("Last ned for Mac", "Download for Mac"),
+    "install_win_help": (
+        "Åpne denne siden i Edge eller Chrome, og trykk på installer-knappen til høyre i adresselinja.",
+        "Open this page in Edge or Chrome, and click the install button at the right end of the address bar.",
+    ),
+    "install_mac_help": (
+        "I Safari: velg Arkiv, så Legg til i Dock. I Chrome: trykk på installer-knappen til høyre i adresselinja.",
+        "In Safari: choose File, then Add to Dock. In Chrome: click the install button at the right end of the address bar.",
+    ),
     "wrong_login": ("Feil e-post, passord eller kode.", "Wrong email, password or code."),
     "too_many": (
         "For mange feil forsøk. Vent 15 minutter.",

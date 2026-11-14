@@ -4,6 +4,7 @@
 
 - Plan and Oversikt sit in the top bar on every page, next to Oppsett, and keep the month shown.
 - spare can be installed as an app from Chrome, Edge or Safari, on a laptop or a phone.
+- The front page has download buttons for Windows and Mac. They install the app, or show how.
 
 ## 0.2.0 (2026-11-14)
 
