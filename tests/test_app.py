@@ -68,18 +68,66 @@ def test_amounts_are_read_both_ways_of_writing():
     assert spare.parse_amount("abc") is None
 
 
-def test_a_month_adds_up_and_the_rest_goes_to_savings():
+def test_the_plan_shows_what_is_left_to_spend(monkeypatch):
+    monkeypatch.setattr(spare, "this_month", lambda: "2026-11")
     client, uid = user("vera@example.com", "Vera")
-    add(client, "2026-10", type_id(uid, "salary"), "30000")
+    housing = type_id(uid, "housing")
+    post(client, f"/types/{housing}", name="Bolig", amount="10 000", fixed="1", colour="blue")
     add(client, "2026-11", type_id(uid, "salary"), "32 500,50", "Main job")
     add(client, "2026-11", type_id(uid, "food"), "1200")
+    post(client, "/m/2026-11/saving", saving="5000")
+    page = client.get("/m/2026-11").data.decode()
+    assert f"Du kan bruke <strong>16{NB}300,50{NB}kr" in page  # 32 500,50 - 10 000 - 5000 - 1200
+    assert f"−10{NB}000{NB}kr" in page and f"−1{NB}200{NB}kr" in page and "Main job" in page
+
+
+def test_saving_and_the_rest_go_to_the_accounts(monkeypatch):
+    monkeypatch.setattr(spare, "this_month", lambda: "2026-11")
+    client, uid = user("vic@example.com", "Vic")
     with spare.connect() as con:
         con.execute("UPDATE accounts SET start = 1000 WHERE user_id = ? AND savings", (uid,))
-    page = client.get("/m/2026-11").data.decode()
-    assert f"Spart i november: 31{NB}300,50{NB}kr" in page
-    assert f"62{NB}300,50{NB}kr" in page  # 1000 at the start, plus October and November
-    assert "Main job" in page and 'class="bar up"' in page
-    assert f"Spart i 2026: 61{NB}300,50{NB}kr" in page
+    add(client, "2026-10", type_id(uid, "salary"), "30000")
+    post(client, "/m/2026-10/saving", saving="4000")
+    add(client, "2026-11", type_id(uid, "salary"), "20000")
+    add(client, "2026-11", type_id(uid, "food"), "1000")
+    post(client, "/m/2026-11/saving", saving="5000")
+    page = client.get("/m/2026-11/cards").data.decode()
+    assert f"10{NB}000{NB}kr" in page  # the savings account: 1000 + 4000 + 5000
+    assert f"40{NB}000{NB}kr" in page  # the spending account: 26 000 + 14 000
+    assert f"Spart i 2026: 9{NB}000{NB}kr" in page and 'class="bar up"' in page
+
+
+def test_a_fixed_card_comes_into_each_new_month(monkeypatch):
+    monkeypatch.setattr(spare, "this_month", lambda: "2026-11")
+    client, uid = user("walt@example.com", "Walt")
+    tid = type_id(uid, "transport")
+    post(client, f"/types/{tid}", name="Månedskort", amount="890", fixed="1", colour="yellow")
+    post(client, "/m/2026-11/saving", saving="3000")
+    page = client.get("/m/2026-12/cards").data.decode()
+    assert 'value="890"' in page  # the fixed card, at its usual amount
+    assert 'value="3 000"'.replace(" ", NB) in client.get("/m/2026-12").data.decode()
+    assert 'value="890"' not in client.get("/m/2026-09/cards").data.decode()  # past months stay
+    # December's planned saving is not counted until December
+    assert f"Spart i 2026: 3{NB}000{NB}kr" in client.get("/m/2026-11/cards").data.decode()
+    post(client, f"/types/{tid}", name="Månedskort", amount="950", fixed="1", colour="yellow")
+    page = client.get("/m/2026-12/cards").data.decode()
+    assert 'value="950"' in page and 'value="890"' not in page
+    with spare.connect() as con:
+        eid = con.execute("SELECT id FROM entries WHERE month = '2026-12' AND type_id = ?", (tid,))
+        eid = eid.fetchone()[0]
+    post(client, f"/e/{eid}", delete="1")
+    assert 'value="950"' not in client.get("/m/2026-12/cards").data.decode()  # stays deleted
+
+
+def test_a_new_card_starts_at_the_usual_amount():
+    client, uid = user("xena@example.com", "Xena")
+    post(client, "/types/new", side="out", name="Kino", amount="150", colour="pink")
+    with spare.connect() as con:
+        tid = con.execute("SELECT id FROM types WHERE user_id = ? AND name = 'Kino'", (uid,))
+        tid = tid.fetchone()[0]
+    r = post(client, "/m/2026-11/add", type=str(tid), screen="cards")
+    assert "/m/2026-11/cards?new=" in r.headers["Location"]
+    assert 'value="150"' in client.get("/m/2026-11/cards").data.decode()
 
 
 def test_each_user_sees_only_their_own_cards():
@@ -104,7 +152,7 @@ def test_a_removed_card_type_keeps_its_old_cards():
     tid = type_id(uid, "clothes")
     add(client, "2026-11", tid, "500")
     post(client, f"/types/{tid}", hide="1")
-    page = client.get("/m/2026-11").data.decode()
+    page = client.get("/m/2026-11/cards").data.decode()
     assert f'name="type" value="{tid}"' not in page and 'value="500"' in page
 
 

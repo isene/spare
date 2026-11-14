@@ -1,0 +1,40 @@
+{# Parts the plan and the overview share #}
+{% macro monthbar() %}
+<div class="monthbar">
+  <a class="step" href="{{ url_for(request.endpoint, month=prev) }}" aria-label="{{ t('prev') }}">‹</a>
+  <h1>{{ name|capitalize }} {{ year }}</h1>
+  <a class="step" href="{{ url_for(request.endpoint, month=next) }}" aria-label="{{ t('next') }}">›</a>
+  <nav class="screens">
+    <a class="c-green{{ ' on' if request.endpoint == 'month' }}" href="{{ url_for('month', month=month) }}">{{ t('plan') }}</a>
+    <a class="c-blue{{ ' on' if request.endpoint == 'cards' }}" href="{{ url_for('cards', month=month) }}">{{ t('overview') }}</a>
+  </nav>
+  {{ caller() if caller }}
+</div>
+{% endmacro %}
+
+{% macro column(side, title, sum) %}
+<section class="col {{ side }}" id="{{ side }}">
+  <h2>{{ title }} <span id="sum-{{ side }}" data-fresh>{{ money(sum) }}</span></h2>
+  <div class="palette">
+    {% for ty in types if ty.side == side %}
+    <form method="post" action="{{ url_for('add_entry', month=month) }}">
+      <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="screen" value="{{ request.endpoint }}">
+      <button class="chip c-{{ ty.colour }}" name="type" value="{{ ty.id }}">+ {{ ty|label }}</button>
+    </form>
+    {% endfor %}
+  </div>
+  <div class="cards">
+    {% for e in entries if e.side == side %}
+    <form method="post" action="{{ url_for('edit_entry', eid=e.id) }}" class="card c-{{ e.colour }}" data-live>
+      <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="screen" value="{{ request.endpoint }}">
+      <input name="note" value="{{ e.note }}" placeholder="{{ e|label }}" maxlength="80" aria-label="{{ t('note') }}">
+      <input name="amount" class="amount" inputmode="decimal" value="{{ plain(e.amount) }}" placeholder="0" aria-label="{{ t('amount') }}"{% if e.id == new %} autofocus{% endif %}>
+      <button class="vh">{{ t('save') }}</button>
+      <button name="delete" value="1" class="x" aria-label="{{ t('delete') }}">×</button>
+    </form>
+    {% else %}
+    <p class="empty">{{ t('empty') }}</p>
+    {% endfor %}
+  </div>
+</section>
+{% endmacro %}

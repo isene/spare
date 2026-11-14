@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% from "parts.html" import monthbar, column with context %}
+{% block title %}{{ name|capitalize }} {{ year }} · spare{% endblock %}
+{% block body %}
+{{ monthbar() }}
+<div class="plan">
+  <p id="left" class="left {{ 'up' if left >= 0 else 'down' }}" data-fresh>{{ t('can_spend') }} <strong>{{ money(left) }}</strong></p>
+  {{ column('in', t('income'), total_in) }}
+  <p class="card line out" id="fixed" data-fresh><span>{{ t('fixed_costs') }}</span><strong>{{ money(-fixed) }}</strong></p>
+  <form method="post" action="{{ url_for('set_saving', month=month) }}" class="card line acc" data-live>
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label for="saving">{{ t('saving') }}</label>
+    <input id="saving" name="saving" class="amount" inputmode="decimal" value="{{ plain(saving) }}" placeholder="0">
+    <button class="vh">{{ t('save') }}</button>
+  </form>
+  <p class="card line c-red" id="other" data-fresh><span>{{ t('other_spending') }}</span><strong>{{ money(-other) }}</strong></p>
+  <p class="small"><a href="{{ url_for('cards', month=month) }}">{{ t('see_cards') }}</a>. {{ t('plan_help') }}</p>
+</div>
+{% endblock %}

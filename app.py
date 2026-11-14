@@ -22,7 +22,7 @@ from markupsafe import Markup
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import check_password_hash, generate_password_hash
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 ROOT = Path(__file__).resolve().parent
 
@@ -62,11 +62,13 @@ CREATE TABLE IF NOT EXISTS users (
   currency TEXT NOT NULL DEFAULT 'NOK', theme TEXT NOT NULL DEFAULT '',
   created_at INTEGER NOT NULL);
 -- The card types a user taps or drags into a month. A type made at the start has a key and
--- no name until it is renamed, so its name follows the language switch.
+-- no name until it is renamed, so its name follows the language switch. A new card starts at
+-- the type's usual amount, and a type marked fixed comes into each new month by itself.
 CREATE TABLE IF NOT EXISTS types (
   id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id),
   side TEXT NOT NULL, key TEXT NOT NULL DEFAULT '', name TEXT NOT NULL DEFAULT '',
-  colour TEXT NOT NULL, hidden INTEGER NOT NULL DEFAULT 0);
+  colour TEXT NOT NULL, hidden INTEGER NOT NULL DEFAULT 0,
+  amount REAL NOT NULL DEFAULT 0, fixed INTEGER NOT NULL DEFAULT 0);
 CREATE TABLE IF NOT EXISTS entries (
   id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id),
   type_id INTEGER NOT NULL REFERENCES types(id), month TEXT NOT NULL,
@@ -76,6 +78,10 @@ CREATE TABLE IF NOT EXISTS accounts (
   id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id),
   key TEXT NOT NULL DEFAULT '', name TEXT NOT NULL DEFAULT '',
   start REAL NOT NULL DEFAULT 0, savings INTEGER NOT NULL DEFAULT 0);
+-- A month gets a row the first time it is opened: what the user plans to save that month.
+CREATE TABLE IF NOT EXISTS months (
+  user_id INTEGER NOT NULL REFERENCES users(id), month TEXT NOT NULL,
+  saving REAL NOT NULL DEFAULT 0, PRIMARY KEY (user_id, month));
 """
 
 START_TYPES = (
@@ -140,6 +146,21 @@ WORDS = {
     "expenses": ("Utgifter", "Expenses"),
     "accounts": ("Kontoer", "Accounts"),
     "saved_in": ("Spart i {month}", "Saved in {month}"),
+    "plan": ("Plan", "Plan"),
+    "overview": ("Oversikt", "Overview"),
+    "can_spend": ("Du kan bruke", "You can spend"),
+    "left_to_spend": ("Igjen å bruke", "Left to spend"),
+    "fixed_costs": ("Faste utgifter", "Fixed costs"),
+    "saving": ("Sparing", "Saving"),
+    "other_spending": ("Annet brukt", "Other spending"),
+    "see_cards": ("Se alle kortene", "See all the cards"),
+    "plan_help": (
+        "Faste utgifter og vanlige beløp endrer du i Oppsett. Annet du bruker, legger du inn i Oversikt.",
+        "Change fixed costs and usual amounts in Setup. Put other spending in Overview.",
+    ),
+    "rest_here": ("Resten går hit", "The rest goes here"),
+    "usual_amount": ("Vanlig beløp", "Usual amount"),
+    "every_month": ("Hver måned", "Every month"),
     "empty": ("Trykk på et kort over, eller dra det hit.", "Tap a card above, or drag it here."),
     "delete": ("Slett", "Delete"),
     "save": ("Lagre", "Save"),
@@ -147,8 +168,8 @@ WORDS = {
     "savings_here": ("Det du sparer, går hit", "What you save goes here"),
     "edit_accounts": ("Endre kontoer", "Edit accounts"),
     "chart_help": (
-        "Stolpene viser hver måned, linja det du har spart så langt i år.",
-        "The bars show each month, the line what you have saved so far this year.",
+        "Stolpene viser hva du sparte hver måned, linja summen så langt i år.",
+        "The bars show what you saved each month, the line the sum so far this year.",
     ),
     "prev": ("Forrige måned", "Previous month"),
     "next": ("Neste måned", "Next month"),
@@ -160,8 +181,14 @@ WORDS = {
     "add": ("Legg til", "Add"),
     "remove": ("Fjern", "Remove"),
     "types_help": (
-        "Fjerner du en korttype, blir kortene du alt har lagt inn, stående.",
-        "Removing a card type keeps the cards already in your months.",
+        (
+            "Et kort merket «Hver måned» kommer inn i hver ny måned av seg selv, med det vanlige"
+            " beløpet. Fjerner du en korttype, blir kortene du alt har lagt inn, stående."
+        ),
+        (
+            'A card marked "Every month" comes into each new month by itself, at its usual amount.'
+            " Removing a card type keeps the cards already in your months."
+        ),
     ),
     "start": ("Startsaldo", "Starting balance"),
     "new_account": ("Ny konto", "New account"),
@@ -578,60 +605,138 @@ def demo():
     return redirect(url_for("home"))
 
 
-# The month: income, expenses and accounts
+# The month: a plan of what is left to spend, and an overview of every card
 
 
-@app.route("/")
-def home():
-    return redirect(url_for("month", month=time.strftime("%Y-%m")))
+def this_month() -> str:
+    return time.strftime("%Y-%m")
 
 
-@app.route("/m/<month>")
-def month(month):
+def join_months(con: sqlite3.Connection, uid: int, tid: int, amount: float) -> None:
+    """A type just made fixed joins the months already opened, from this month on."""
+    con.execute(
+        "INSERT INTO entries (user_id, type_id, month, amount) SELECT user_id, ?, month, ?"
+        " FROM months m WHERE user_id = ? AND month >= ? AND NOT EXISTS"
+        " (SELECT 1 FROM entries e WHERE e.type_id = ? AND e.month = m.month)",
+        (tid, amount, uid, this_month(), tid),
+    )
+
+
+def open_month(con: sqlite3.Connection, uid: int, month: str) -> None:
+    """The first time a month is opened, it gets the fixed cards and the saving of the month
+    before. A card deleted later stays deleted. Months already past are left as they are."""
+    if (
+        month < this_month()
+        or con.execute(
+            "SELECT 1 FROM months WHERE user_id = ? AND month = ?", (uid, month)
+        ).fetchone()
+    ):
+        return
+    last = con.execute(
+        "SELECT saving FROM months WHERE user_id = ? AND month < ? ORDER BY month DESC LIMIT 1",
+        (uid, month),
+    ).fetchone()
+    con.execute(
+        "INSERT INTO months (user_id, month, saving) VALUES (?, ?, ?)",
+        (uid, month, last[0] if last else 0.0),
+    )
+    con.execute(
+        "INSERT INTO entries (user_id, type_id, month, amount) SELECT user_id, id, ?, amount"
+        " FROM types WHERE user_id = ? AND fixed AND NOT hidden ORDER BY id",
+        (month, uid),
+    )
+    con.commit()
+
+
+def month_values(month: str) -> dict:
+    """Everything both screens of a month show."""
     if not MONTH.fullmatch(month):
         abort(404)
     con, uid = db(), current_user()["id"]
+    open_month(con, uid, month)
     types = con.execute(
         "SELECT * FROM types WHERE user_id = ? AND NOT hidden ORDER BY id", (uid,)
     ).fetchall()
     entries = con.execute(
-        "SELECT e.*, t.side, t.key, t.name, t.colour FROM entries e"
+        "SELECT e.*, t.side, t.key, t.name, t.colour, t.fixed FROM entries e"
         " JOIN types t ON t.id = e.type_id WHERE e.user_id = ? AND e.month = ? ORDER BY e.id",
         (uid, month),
     ).fetchall()
-    totals = dict(
-        con.execute(
-            "SELECT e.month, SUM(CASE WHEN t.side = 'in' THEN e.amount ELSE -e.amount END)"
-            " FROM entries e JOIN types t ON t.id = e.type_id WHERE e.user_id = ?"
-            " GROUP BY e.month",
-            (uid,),
-        ).fetchall()
-    )
-    so_far = sum(v for m, v in totals.items() if m <= month)
-    accounts = [
-        dict(a, balance=a["start"] + (so_far if a["savings"] else 0))
-        for a in con.execute("SELECT * FROM accounts WHERE user_id = ? ORDER BY id", (uid,))
-    ]
+    savings = dict(con.execute("SELECT month, saving FROM months WHERE user_id = ?", (uid,)))
+    saving = savings.get(month, 0.0)
+    saved = sum(v for m, v in savings.items() if m <= month)
+    net = con.execute(
+        "SELECT SUM(CASE WHEN t.side = 'in' THEN e.amount ELSE -e.amount END) FROM entries e"
+        " JOIN types t ON t.id = e.type_id WHERE e.user_id = ? AND e.month <= ?",
+        (uid, month),
+    ).fetchone()[0]
+    # The savings account gets what was saved; the first other account keeps the rest.
+    accounts, rest_given = [], False
+    for a in con.execute("SELECT * FROM accounts WHERE user_id = ? ORDER BY id", (uid,)):
+        rest = not a["savings"] and not rest_given
+        rest_given = rest_given or rest
+        add = saved if a["savings"] else (net or 0) - saved if rest else 0
+        accounts.append(dict(a, balance=a["start"] + add, rest=rest))
     total_in = sum(e["amount"] for e in entries if e["side"] == "in")
     total_out = sum(e["amount"] for e in entries if e["side"] == "out")
+    fixed = sum(e["amount"] for e in entries if e["side"] == "out" and e["fixed"])
     year = int(month[:4])
-    return render_template(
-        "month.html",
-        month=month,
-        name=MONTHS[LANGS.index(lang())][int(month[5:]) - 1],
-        year=year,
-        prev=shift(month, -1),
-        next=shift(month, 1),
-        types=types,
-        entries=entries,
-        total_in=total_in,
-        total_out=total_out,
-        saved=total_in - total_out,
-        accounts=accounts,
-        total_acc=sum(a["balance"] for a in accounts),
-        chart=chart(totals, year),
-        new=request.args.get("new", type=int),
-    )
+    return {
+        "month": month,
+        "name": MONTHS[LANGS.index(lang())][int(month[5:]) - 1],
+        "year": year,
+        "prev": shift(month, -1),
+        "next": shift(month, 1),
+        "types": types,
+        "entries": entries,
+        "total_in": total_in,
+        "total_out": total_out,
+        "fixed": fixed,
+        "other": total_out - fixed,
+        "saving": saving,
+        "left": total_in - total_out - saving,
+        "accounts": accounts,
+        "total_acc": sum(a["balance"] for a in accounts),
+        "chart": chart({m: v for m, v in savings.items() if m <= month}, year),
+        "new": request.args.get("new", type=int),
+    }
+
+
+def back(month: str, **kw):
+    """Back to the screen the form was on."""
+    screen = "cards" if request.form.get("screen") == "cards" else "month"
+    return redirect(url_for(screen, month=month, **kw))
+
+
+@app.route("/")
+def home():
+    return redirect(url_for("month", month=this_month()))
+
+
+@app.route("/m/<month>")
+def month(month):
+    return render_template("plan.html", **month_values(month))
+
+
+@app.route("/m/<month>/cards")
+def cards(month):
+    return render_template("month.html", **month_values(month))
+
+
+@app.route("/m/<month>/saving", methods=["POST"])
+def set_saving(month):
+    if not MONTH.fullmatch(month):
+        abort(404)
+    amount = parse_amount(request.form.get("saving", ""))
+    if amount is not None:
+        con, uid = db(), current_user()["id"]
+        open_month(con, uid, month)
+        con.execute(
+            "INSERT OR REPLACE INTO months (user_id, month, saving) VALUES (?, ?, ?)",
+            (uid, month, amount),
+        )
+        con.commit()
+    return redirect(url_for("month", month=month))
 
 
 @app.route("/m/<month>/add", methods=["POST"])
@@ -641,11 +746,11 @@ def add_entry(month):
     ty = mine("types", request.form.get("type", type=int))
     con = db()
     eid = con.execute(
-        "INSERT INTO entries (user_id, type_id, month) VALUES (?, ?, ?)",
-        (ty["user_id"], ty["id"], month),
+        "INSERT INTO entries (user_id, type_id, month, amount) VALUES (?, ?, ?, ?)",
+        (ty["user_id"], ty["id"], month, ty["amount"]),
     ).lastrowid
     con.commit()
-    return redirect(url_for("month", month=month, new=eid))
+    return back(month, new=eid)
 
 
 @app.route("/e/<int:eid>", methods=["POST"])
@@ -664,7 +769,7 @@ def edit_entry(eid):
             ),
         )
     con.commit()
-    return redirect(url_for("month", month=e["month"]))
+    return back(e["month"])
 
 
 # Setup: card types, accounts, language, currency and password
@@ -686,15 +791,18 @@ def setup():
 
 @app.route("/types/new", methods=["POST"])
 def new_type():
-    f = request.form
+    f, con, uid = request.form, db(), current_user()["id"]
     name = f.get("name", "").strip()[:40]
     if f.get("side") in ("in", "out") and name:
         colour = f.get("colour") if f.get("colour") in COLOURS else COLOURS[0]
-        db().execute(
-            "INSERT INTO types (user_id, side, name, colour) VALUES (?, ?, ?, ?)",
-            (current_user()["id"], f["side"], name, colour),
-        )
-        db().commit()
+        amount = parse_amount(f.get("amount", "")) or 0.0
+        tid = con.execute(
+            "INSERT INTO types (user_id, side, name, colour, amount, fixed) VALUES (?, ?, ?, ?, ?, ?)",
+            (uid, f["side"], name, colour, amount, int(bool(f.get("fixed")))),
+        ).lastrowid
+        if f.get("fixed"):
+            join_months(con, uid, tid, amount)
+        con.commit()
     return redirect(url_for("setup") + "#types")
 
 
@@ -709,6 +817,18 @@ def edit_type(tid):
             con.execute("UPDATE types SET name = ? WHERE id = ?", (name, tid))
         if f.get("colour") in COLOURS:
             con.execute("UPDATE types SET colour = ? WHERE id = ?", (f["colour"], tid))
+        amount = parse_amount(f.get("amount", ""))
+        amount = ty["amount"] if amount is None else amount
+        fixed = int(bool(f.get("fixed")))
+        con.execute("UPDATE types SET amount = ?, fixed = ? WHERE id = ?", (amount, fixed, tid))
+        if fixed and not ty["fixed"]:
+            join_months(con, ty["user_id"], tid, amount)
+        elif fixed and amount != ty["amount"]:
+            # A new rent from this month on: cards that still have the old amount follow.
+            con.execute(
+                "UPDATE entries SET amount = ? WHERE type_id = ? AND month >= ? AND amount = ?",
+                (amount, tid, this_month(), ty["amount"]),
+            )
     con.commit()
     return redirect(url_for("setup") + "#types")
 

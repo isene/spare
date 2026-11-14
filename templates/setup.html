@@ -14,6 +14,8 @@
   <form method="post" action="{{ url_for('edit_type', tid=ty.id) }}" class="card typerow c-{{ ty.colour }}" data-autosubmit>
     <input type="hidden" name="csrf" value="{{ csrf }}">
     <input name="name" value="{{ ty|label }}" maxlength="40" required aria-label="{{ t('name') }}">
+    <label class="small">{{ t('usual_amount') }} <input name="amount" class="amount" inputmode="decimal" value="{{ plain(ty.amount) }}" placeholder="0"></label>
+    <label class="small check"><input type="checkbox" name="fixed" value="1"{% if ty.fixed %} checked{% endif %}> {{ t('every_month') }}</label>
     {{ swatches(ty.colour) }}
     <button class="vh">{{ t('save') }}</button>
     <button name="hide" value="1" class="link">{{ t('remove') }}</button>
@@ -23,6 +25,8 @@
   <form method="post" action="{{ url_for('new_type') }}" class="newrow">
     <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="side" value="{{ side }}">
     <input name="name" maxlength="40" required placeholder="{{ t('new_type') }}" aria-label="{{ t('new_type') }}">
+    <input name="amount" class="amount" inputmode="decimal" placeholder="{{ t('usual_amount') }}" aria-label="{{ t('usual_amount') }}">
+    <label class="small check"><input type="checkbox" name="fixed" value="1"> {{ t('every_month') }}</label>
     {{ swatches(free[side]) }}
     <button>{{ t('add') }}</button>
   </form>

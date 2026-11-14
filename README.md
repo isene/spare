@@ -1,20 +1,25 @@
 # spare
 
-A simple monthly budget on coloured cards. Each month has three columns:
-income, expenses and accounts. What is left at the end of the month goes to the
-savings account, and a chart shows how the savings grow through the year.
+A simple monthly budget on coloured cards. The main screen answers one question:
+with this month's income, fixed costs and saving, how much can I still spend?
 
 "Spare" is Norwegian for "save", and English for money left over.
 
 ## What it does
 
-- **Cards**: each card type has its own colour, such as salary, food or
-  clothes. Tap a card type, or drag it with a mouse, into the month and type
-  the amount. It saves as soon as you leave the box.
-- **Card types**: rename them, pick a colour, add your own, or remove one.
-  Cards already in your months stay when a type is removed.
-- **Accounts**: one card per bank account, with a starting balance. The
-  month's savings go to the account you pick.
+- **Plan**: type this month's income, and set what to save. The page shows
+  the fixed costs, other spending, and in large type what you can still spend.
+- **Overview**: income, expenses and accounts as three columns of cards. Tap
+  a card type, or drag it with a mouse, into the month and type the amount.
+  It saves as soon as you leave the box.
+- **Card types**: rename them, pick a colour, give a usual amount, add your
+  own, or remove one. A new card starts at the usual amount. Cards already in
+  your months stay when a type is removed.
+- **Every month**: a card type marked this way, such as rent or a bus pass,
+  comes into each new month by itself. Delete it from one month and it stays
+  gone there.
+- **Accounts**: one card per bank account, with a starting balance. What you
+  save goes to the savings account; the rest stays in the spending account.
 - **Chart**: a bar for what each month saved, and a line for the sum so far
   this year.
 - **Language and money**: Norwegian or English, and NOK, EUR or USD.
