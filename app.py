@@ -307,7 +307,7 @@ def close_db(_exc) -> None:
 
 
 def init_db() -> None:
-    DATA.mkdir(parents=True, exist_ok=True)
+    DATA.mkdir(mode=0o700, parents=True, exist_ok=True)  # budgets are private
     with closing(connect()) as con:
         con.execute("PRAGMA journal_mode = WAL")
         con.executescript(SCHEMA)
