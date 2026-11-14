@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="{{ lang }}"{% if theme %} data-theme="{{ theme }}"{% endif %}>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}spare{% endblock %}</title>
+<link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='logo.svg') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css', v=version) }}">
+<script src="{{ url_for('static', filename='spare.js', v=version) }}" defer></script>
+</head>
+<body>
+<header>
+  <a class="brand" href="{{ url_for('home') }}"><img src="{{ url_for('static', filename='logo.svg') }}" alt="">spare</a>
+  <nav>
+    <form method="post" action="{{ url_for('prefs') }}" class="inline">
+      <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="next" value="{{ request.full_path.rstrip('?') }}">
+      <button name="lang" value="{{ 'en' if lang == 'nb' else 'nb' }}" class="link">{{ 'English' if lang == 'nb' else 'Norsk' }}</button>
+      <button name="theme" value="dark" class="link to-dark">{{ t('dark') }}</button>
+      <button name="theme" value="light" class="link to-light">{{ t('light') }}</button>
+    </form>
+    {% if me %}
+    <a href="{{ url_for('setup') }}">{{ t('setup') }}</a>
+    {% if me.is_admin %}<a href="{{ url_for('admin') }}">{{ t('users') }}</a>{% endif %}
+    <form method="post" action="{{ url_for('logout') }}" class="inline">
+      <input type="hidden" name="csrf" value="{{ csrf }}"><button class="link">{{ t('logout') }}</button>
+    </form>
+    {% endif %}
+  </nav>
+</header>
+<main>
+{% for m in get_flashed_messages() %}<p class="flash">{{ m }}</p>{% endfor %}
+{% block body %}{% endblock %}
+</main>
+</body>
+</html>

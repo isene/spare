@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block body %}
+<form method="post" class="box">
+  <p class="tagline">{{ t('tagline') }}</p>
+  <h1>{{ t('login') }}</h1>
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <label>{{ t('email') }} <input name="email" type="email" required autofocus autocomplete="username"></label>
+  <label>{{ t('password') }} <input name="password" type="password" required autocomplete="current-password"></label>
+  <label>{{ t('code') }} <input name="code" inputmode="numeric" required autocomplete="one-time-code"></label>
+  <button>{{ t('login') }}</button>
+</form>
+{% endblock %}

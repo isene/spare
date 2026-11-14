@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}{{ t('users') }} · spare{% endblock %}
+{% block body %}
+<h1>{{ t('users') }}</h1>
+<form method="post" action="{{ url_for('admin_new') }}" class="newrow">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <input name="name" required placeholder="{{ t('name') }}" aria-label="{{ t('name') }}">
+  <input name="email" type="email" required placeholder="{{ t('email') }}" aria-label="{{ t('email') }}">
+  <button>{{ t('add_user') }}</button>
+</form>
+<table>
+{% for u in users %}
+<tr>
+  <td>{{ u.name }}</td>
+  <td>{{ u.email }}</td>
+  <td class="small">{% if u.pw_hash %}{{ t('active') }}{% elif u.invite_expires and u.invite_expires > now %}{{ t('invited', date=u.invite_expires|date) }}{% else %}{{ t('no_login') }}{% endif %}</td>
+  <td><form method="post" action="{{ url_for('admin_invite', uid=u.id) }}" class="inline">
+    <input type="hidden" name="csrf" value="{{ csrf }}"><button class="link">{{ t('new_link') }}</button></form></td>
+</tr>
+{% endfor %}
+</table>
+<p class="small">{{ t('admin_help') }}</p>
+{% endblock %}

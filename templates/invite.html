@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block body %}
+<form method="post" class="box">
+  <h1>{{ t('welcome', name=user.name) }}</h1>
+  <p>{{ t('invite_intro') }}</p>
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <label>{{ t('email') }} <input name="email" type="email" value="{{ user.email }}" readonly autocomplete="username"></label>
+  <label>{{ t('pw12') }} <input name="password" type="password" minlength="12" required autocomplete="new-password"></label>
+  <label>{{ t('pw_again') }} <input name="password2" type="password" minlength="12" required autocomplete="new-password"></label>
+  <p>{{ t('scan') }}</p>
+  <div class="qr">{{ qr }}</div>
+  <p class="small">{{ t('or_type') }} <code>{{ user.totp_secret }}</code></p>
+  <label>{{ t('six_digits') }} <input name="code" inputmode="numeric" required autocomplete="one-time-code"></label>
+  <button>{{ t('save_login') }}</button>
+</form>
+{% endblock %}

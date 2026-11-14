@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}{{ name|capitalize }} {{ year }} · spare{% endblock %}
+{% block body %}
+<div class="monthbar">
+  <a class="step" href="{{ url_for('month', month=prev) }}" aria-label="{{ t('prev') }}">‹</a>
+  <h1>{{ name|capitalize }} {{ year }}</h1>
+  <a class="step" href="{{ url_for('month', month=next) }}" aria-label="{{ t('next') }}">›</a>
+  <p id="saved" class="saved {{ 'up' if saved >= 0 else 'down' }}" data-fresh>{{ t('saved_in', month=name) }}: {{ money(saved) }}</p>
+</div>
+<nav class="tabs"><a class="in" href="#in">{{ t('income') }}</a><a class="out" href="#out">{{ t('expenses') }}</a><a class="acc" href="#acc">{{ t('accounts') }}</a></nav>
+<div class="cols">
+{% for side, title, sum in (('in', t('income'), total_in), ('out', t('expenses'), total_out)) %}
+<section class="col {{ side }}" id="{{ side }}">
+  <h2>{{ title }} <span id="sum-{{ side }}" data-fresh>{{ money(sum) }}</span></h2>
+  <div class="palette">
+    {% for ty in types if ty.side == side %}
+    <form method="post" action="{{ url_for('add_entry', month=month) }}">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <button class="chip c-{{ ty.colour }}" name="type" value="{{ ty.id }}">+ {{ ty|label }}</button>
+    </form>
+    {% endfor %}
+  </div>
+  <div class="cards">
+    {% for e in entries if e.side == side %}
+    <form method="post" action="{{ url_for('edit_entry', eid=e.id) }}" class="card c-{{ e.colour }}" data-live>
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <input name="note" value="{{ e.note }}" placeholder="{{ e|label }}" maxlength="80" aria-label="{{ t('note') }}">
+      <input name="amount" class="amount" inputmode="decimal" value="{{ plain(e.amount) }}" placeholder="0" aria-label="{{ t('amount') }}"{% if e.id == new %} autofocus{% endif %}>
+      <button class="vh">{{ t('save') }}</button>
+      <button name="delete" value="1" class="x" aria-label="{{ t('delete') }}">×</button>
+    </form>
+    {% else %}
+    <p class="empty">{{ t('empty') }}</p>
+    {% endfor %}
+  </div>
+</section>
+{% endfor %}
+<section class="col acc" id="acc">
+  <h2>{{ t('accounts') }} <span id="sum-acc" data-fresh>{{ money(total_acc) }}</span></h2>
+  <div class="cards" id="accounts" data-fresh>
+    {% for a in accounts %}
+    <div class="card account {{ 'c-green' if a.savings else 'c-blue' }}">
+      <span>{{ a|label }}</span>
+      <strong>{{ money(a.balance) }}</strong>
+      {% if a.savings %}<span class="small">{{ t('savings_here') }}: {{ money(saved) }} {{ t('this_month') }}</span>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  <p class="small"><a href="{{ url_for('setup') }}#accounts">{{ t('edit_accounts') }}</a></p>
+</section>
+</div>
+<section class="chart" id="chart" data-fresh>
+  <h2>{{ t('saved_in', month=year) }}: {{ money(chart.total) }}</h2>
+  <svg viewBox="0 0 600 200" role="img" aria-label="{{ t('chart_help') }}">
+    <line class="zero" x1="0" x2="600" y1="{{ chart.zero }}" y2="{{ chart.zero }}"/>
+    {% for b in chart.bars %}<rect class="bar {{ 'up' if b.v >= 0 else 'down' }}" x="{{ b.x }}" y="{{ b.y }}" width="24" height="{{ b.h }}" rx="3"><title>{{ months[b.i] }}: {{ money(b.v) }}</title></rect>{% endfor %}
+    {% if chart.dots|length > 1 %}<polyline class="run" points="{% for x, y in chart.dots %}{{ x }},{{ y }} {% endfor %}"/>{% endif %}
+    {% for x, y in chart.dots %}<circle class="dot" cx="{{ x }}" cy="{{ y }}" r="4"/>{% endfor %}
+    {% for m in months %}<text x="{{ 24 + loop.index0 * 48 }}" y="194">{{ m[:3] }}</text>{% endfor %}
+  </svg>
+  <p class="small">{{ t('chart_help') }}</p>
+</section>
+{% endblock %}
