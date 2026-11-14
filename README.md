@@ -46,6 +46,7 @@ Put these in the environment, or in a `.env` file next to `app.py`:
 | `SPARE_PORT` | The local port, 8094 if not set. |
 | `SPARE_DATA` | The folder for the database, `data/` if not set. |
 | `SPARE_DEV` | `1` lets the login cookie work over plain http, for testing only. |
+| `SPARE_DEMO` | `1`, together with `SPARE_DEV=1`, makes `/demo` log in as the first user with no password. For testing on your own machine only. |
 
 ## Server
 

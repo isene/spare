@@ -462,7 +462,10 @@ def guard():
         token = session.get("csrf", "")
         if not token or not hmac.compare_digest(token, request.form.get("csrf", "")):
             abort(400)
-    if request.endpoint not in ("login", "invite", "prefs", "static") and not current_user():
+    if (
+        request.endpoint not in ("login", "invite", "prefs", "demo", "static")
+        and not current_user()
+    ):
         return redirect(url_for("login"))
     return None
 
@@ -558,8 +561,21 @@ def invite(token):
     uri = "otpauth://totp/spare:{}?secret={}&issuer=spare".format(
         quote(user["email"]), user["totp_secret"]
     )
-    qr = Markup(segno.make(uri, error="m").svg_inline(scale=5))
+    qr = Markup(segno.make(uri, error="m").svg_inline(scale=5, omitsize=True))
     return render_template("invite.html", user=user, qr=qr)
+
+
+@app.route("/demo")
+def demo():
+    """Log in as the first user without a password, for testing on your own machine.
+    Off unless both SPARE_DEV=1 and SPARE_DEMO=1 are set; never set them on a server."""
+    if not (DEV and os.environ.get("SPARE_DEMO") == "1"):
+        abort(404)
+    row = db().execute("SELECT id FROM users WHERE pw_hash IS NOT NULL ORDER BY id").fetchone()
+    if row is None:
+        abort(404)
+    log_in(row["id"])
+    return redirect(url_for("home"))
 
 
 # The month: income, expenses and accounts

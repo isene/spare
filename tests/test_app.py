@@ -115,3 +115,12 @@ def test_only_the_admin_adds_users():
     post(admin, "/admin/new", email="cleo@example.com", name="Cleo")
     page = admin.get("/admin").data.decode()
     assert "cleo@example.com" in page and "/invite/" in page
+
+
+def test_the_qr_code_scales_and_the_demo_login_is_off():
+    with spare.connect() as con:
+        link = spare.make_invite(con, spare.add_user(con, "dan@example.com", "Dan"))
+    page = spare.app.test_client().get(link.replace(spare.BASE_URL, "")).data.decode()
+    svg = page[page.index("<svg") : page.index(">", page.index("<svg"))]
+    assert "viewBox" in svg and "width=" not in svg  # a fixed size gets cut off when shrunk
+    assert spare.app.test_client().get("/demo").status_code == 404

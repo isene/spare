@@ -145,7 +145,7 @@ main { padding: 16px; }
 .box label { display: grid; gap: 4px; }
 .box p { margin: 0; }
 .tagline { color: var(--brand); font-weight: 700; }
-.qr svg { width: 180px; height: 180px; background: #fff; border-radius: 8px; }
+.qr svg { display: block; width: 220px; max-width: 100%; background: #fff; border-radius: 8px; }
 table { border-collapse: collapse; margin-top: 16px; width: 100%; }
 td { padding: 8px 10px 8px 0; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
 
