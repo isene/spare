@@ -26,7 +26,7 @@ from markupsafe import Markup
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import check_password_hash, generate_password_hash
 
-__version__ = "0.5.0"
+__version__ = "0.5.1"
 
 ROOT = Path(__file__).resolve().parent
 
@@ -176,6 +176,11 @@ WORDS = {
         "For those who got an invite. The budget is kept on the server, the same on all your devices.",
     ),
     "no_account": ("Bruk spare uten konto", "Use spare without an account"),
+    "no_account_help": (
+        "Uten passord og kode-app. Budsjettet ligger bare på denne enheten, og du kan laste ned appen.",
+        "No password and no code app. The budget is kept only on this device, and you can download the app.",
+    ),
+    "or_account": ("Eller lag en konto", "Or make an account"),
     "backup": ("Sikkerhetskopi", "Backup"),
     "backup_help": (
         (

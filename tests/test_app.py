@@ -171,6 +171,7 @@ def test_the_qr_code_scales_and_the_demo_login_is_off():
     page = spare.app.test_client().get(link.replace(spare.BASE_URL, "")).data.decode()
     svg = page[page.index("<svg") : page.index(">", page.index("<svg"))]
     assert "viewBox" in svg and "width=" not in svg  # a fixed size gets cut off when shrunk
+    assert 'href="/#/start"' in page and "Bruk spare uten konto" in page  # no login needed
     assert spare.app.test_client().get("/demo").status_code == 404
 
 

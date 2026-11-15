@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.1 (2026-11-15)
+
+- The invite page starts with "Bruk spare uten konto": no password and no code app. It leads to
+  the page where the budget is kept on the device and the app can be downloaded.
+
 ## 0.5.0 (2026-11-15)
 
 - The first visit asks where the budget is kept: on this device, or on the server with a login.
