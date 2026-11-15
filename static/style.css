@@ -62,6 +62,9 @@ button { padding: 8px 14px; border: 0; border-radius: 8px; background: var(--bra
 button.link { padding: 0; background: none; color: var(--brand); font-weight: 400;
   text-decoration: underline; text-underline-offset: 3px; }
 button.danger { color: var(--down); }
+/* A link or a file picker that looks like a button */
+.button { display: inline-block; padding: 8px 14px; border-radius: 8px; background: var(--c, var(--brand));
+  color: var(--on); font-size: 16px; font-weight: 700; text-align: center; text-decoration: none; cursor: pointer; }
 form.inline { display: inline; }
 .vh { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden;
   clip: rect(0 0 0 0); white-space: nowrap; }
@@ -77,6 +80,7 @@ header a.on { color: #fff; font-weight: 700; text-decoration: underline; text-un
 .to-dark { display: var(--to-dark); }
 .to-light { display: var(--to-light); }
 main { padding: 16px; }
+#flash { margin: 16px 16px 0; }
 .flash { padding: 10px 12px; border-left: 6px solid var(--yellow); border-radius: 8px;
   background: var(--yellow-t); overflow-wrap: anywhere; }
 
@@ -169,6 +173,7 @@ label.check input[type=checkbox]:focus-visible { outline: 2px solid var(--fg); o
 .install { display: flex; flex-wrap: wrap; gap: 8px; max-width: 420px; margin: -16px auto 32px; }
 .install button { flex: 1; background: var(--c); }
 .install p { flex-basis: 100%; margin: 0; }
+.box-foot { max-width: 420px; margin: -16px auto 32px; }
 @media (display-mode: standalone) { .install { display: none; } }
 .qr svg { display: block; width: 220px; max-width: 100%; background: #fff; border-radius: 8px; }
 table { border-collapse: collapse; margin-top: 16px; width: 100%; }
@@ -179,8 +184,8 @@ td { padding: 8px 10px 8px 0; border-bottom: 1px solid var(--line); overflow-wra
   .saved { width: 100%; margin: 0; }
   .monthbar h1 { min-width: 0; }
   .tabs { display: flex; gap: 8px; margin-bottom: 10px; }
-  .tabs a { flex: 1; padding: 6px; border-radius: 999px; background: var(--t); color: var(--c);
-    font-size: 13px; font-weight: 700; text-align: center; text-decoration: none; }
+  .tabs button { flex: 1; padding: 6px; border-radius: 999px; background: var(--t); color: var(--c);
+    font-size: 13px; font-weight: 700; text-align: center; }
   .cols { display: flex; gap: 12px; margin: 0 -16px; padding: 0 16px; overflow-x: auto;
     scroll-snap-type: x mandatory; scroll-padding: 0 16px; contain: paint; }
   .col { flex: 0 0 100%; scroll-snap-align: start; }

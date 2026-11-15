@@ -7,6 +7,12 @@ with this month's income, fixed costs and saving, how much can I still spend?
 
 ## What it does
 
+- **Where the budget is kept**: the first visit asks. "On this device" keeps
+  it in the browser, works with no internet and never sends it anywhere.
+  "Log in to an account" keeps it on the server, the same on every device.
+  The two are never mixed.
+- **Backup**: on a device, Oppsett has "Save to file" and "Open file". The
+  file is yours; opening one replaces the budget on that device.
 - **Plan**: type this month's income, and set what to save. The page shows
   the fixed costs, other spending, and in large type what you can still spend.
 - **Overview**: income, expenses and accounts as three columns of cards. Tap
@@ -28,22 +34,23 @@ with this month's income, fixed costs and saving, how much can I still spend?
 - **Tour**: the first visit to Plan shows what each part does, one step at a
   time. "Show me around" at the foot of Plan starts it again.
 - **Light and dark**: follows the phone or computer, with a switch at the top.
-- **Login**: password plus a six-digit code from an authenticator app. Only
-  the admin makes users, and each user sees only their own budget.
+- **Login**: for a budget on the server, a password plus a six-digit code
+  from an authenticator app. Only the admin makes users, and each user sees
+  only their own budget.
 
 ## Install it as an app
 
-spare installs from the browser, with its own icon and window. It needs the
-https address of a server. The front page has a download button for Windows
-and one for Mac, which install it or show how.
+spare installs from the browser, with its own icon and window. The first
+install needs the https address of a server; after that, a budget kept on the
+device opens with no internet. The front page has a download button for
+Windows and one for Mac, which install it or show how.
 
 - **Chrome or Edge, on Windows or Mac**: click the install button at the right
   end of the address bar.
 - **Safari on a Mac**: File, then Add to Dock.
 - **iPhone**: Safari's share button, then Add to Home Screen.
 
-The app always shows the server's latest version, so there is nothing to
-update.
+The app fetches a new version of spare by itself the next time it is online.
 
 ## Run it on your own machine
 
@@ -54,7 +61,11 @@ SPARE_DEV=1 .venv/bin/python app.py
 ```
 
 Open the invite link the first command prints, set a password and scan the
-code with your phone. The app runs at http://127.0.0.1:8094.
+code with your phone. The app runs at http://127.0.0.1:8094. For a budget on
+the device only, skip the first command and pick "On this device".
+
+Tests: `.venv/bin/pytest` for the server, `node --test tests/*.test.js` for
+the budget rules.
 
 ## Settings
 
@@ -89,11 +100,15 @@ Deploy a change:
 cd ~/spare && git pull && .venv/bin/pip install -q -r requirements.txt && sudo systemctl restart spare
 ```
 
-All data is in one file, `data/spare.db`. Back it up.
+All data on the server is in one file, `data/spare.db`. Back it up.
 
 ## Choices
 
 - No timers in the page, and no work on the server while nobody uses it.
-- One Python file, plain HTML forms, and a small script for saving in the
-  background and for dragging. No outside services.
+- The budget rules run in the browser, in one script (`static/spare.js`), so
+  a budget on the device needs no server. The Python file only logs people
+  in and keeps each user's budget as one document.
+- A save to the server names the version it was made from. If another device
+  saved first, the save is refused and the page shows the newer budget.
+- No outside services.
 - Public domain (Unlicense).

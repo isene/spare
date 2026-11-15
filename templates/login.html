@@ -9,10 +9,5 @@
   <label>{{ t('code') }} <input name="code" inputmode="numeric" required autocomplete="one-time-code"></label>
   <button>{{ t('login') }}</button>
 </form>
-<div class="install">
-  <button type="button" class="c-blue" data-install="win-help">{{ t('install_win') }}</button>
-  <button type="button" class="c-purple" data-install="mac-help">{{ t('install_mac') }}</button>
-  <p id="win-help" class="small" hidden>{{ t('install_win_help') }}</p>
-  <p id="mac-help" class="small" hidden>{{ t('install_mac_help') }}</p>
-</div>
+<p class="box-foot small"><a href="/#/start">{{ t('no_account') }}</a></p>
 {% endblock %}

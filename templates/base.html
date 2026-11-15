@@ -16,10 +16,9 @@
   <a class="brand" href="{{ url_for('home') }}"><img src="{{ url_for('static', filename='logo.svg') }}" alt="">spare</a>
   <nav>
     {% if me %}
-    {% set shown = month if month is defined else this_month %}
-    <a href="{{ url_for('month', month=shown) }}"{% if request.endpoint == 'month' %} class="on"{% endif %}>{{ t('plan') }}</a>
-    <a id="nav-overview" href="{{ url_for('cards', month=shown) }}"{% if request.endpoint == 'cards' %} class="on"{% endif %}>{{ t('overview') }}</a>
-    <a id="nav-setup" href="{{ url_for('setup') }}"{% if request.endpoint == 'setup' %} class="on"{% endif %}>{{ t('setup') }}</a>
+    <a href="/">{{ t('plan') }}</a>
+    <a href="/#/cards">{{ t('overview') }}</a>
+    <a href="/#/setup">{{ t('setup') }}</a>
     {% if me.is_admin %}<a href="{{ url_for('admin') }}"{% if request.endpoint == 'admin' %} class="on"{% endif %}>{{ t('users') }}</a>{% endif %}
     {% endif %}
     <form method="post" action="{{ url_for('prefs') }}" class="inline">

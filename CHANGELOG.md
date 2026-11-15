@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.0 (2026-11-15)
+
+- The first visit asks where the budget is kept: on this device, or on the server with a login.
+  On the device it works with no internet and is never sent anywhere. The two are never mixed.
+- A budget on the device has "Lagre til fil" and "Åpne fil" in Oppsett, for a backup.
+- The budget rules moved from the server into the page. A budget made before 0.5 moves into the
+  new form the first time its owner opens spare; the old tables are left as they were.
+- A save made on one device while another device had saved first is refused, and the page shows
+  the newer budget with a note.
+
 ## 0.4.0 (2026-11-15)
 
 - A short tour on the first visit to Plan rings one part at a time and says what it does.

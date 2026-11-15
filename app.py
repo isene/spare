@@ -1,10 +1,14 @@
-"""spare: a monthly budget on coloured cards. Income, expenses, and the accounts the rest goes to."""
+"""spare: a monthly budget on coloured cards. Income, expenses, and the accounts the rest goes to.
+
+The budget itself runs in the browser (static/spare.js). This server only logs people in and
+keeps each user's budget as one document; a budget kept on a device never comes here."""
 
 from __future__ import annotations
 
 import base64
 import hashlib
 import hmac
+import json
 import os
 import re
 import secrets
@@ -22,7 +26,7 @@ from markupsafe import Markup
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import check_password_hash, generate_password_hash
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 
 ROOT = Path(__file__).resolve().parent
 
@@ -39,9 +43,6 @@ DEV = os.environ.get("SPARE_DEV") == "1"
 BASE_URL = os.environ.get("SPARE_URL", "http://127.0.0.1:8094").rstrip("/")
 INVITE_DAYS = 7
 LANGS = ("nb", "en")
-CURRENCIES = ("NOK", "EUR", "USD")
-COLOURS = ("green", "teal", "blue", "orange", "red", "purple", "yellow", "pink", "brown")
-MONTH = re.compile(r"\d{4}-(0[1-9]|1[0-2])")
 
 app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
@@ -61,6 +62,12 @@ CREATE TABLE IF NOT EXISTS users (
   invite_token TEXT, invite_expires INTEGER, lang TEXT NOT NULL DEFAULT 'nb',
   currency TEXT NOT NULL DEFAULT 'NOK', theme TEXT NOT NULL DEFAULT '',
   created_at INTEGER NOT NULL);
+-- Each user's budget as one JSON document, the same shape the page keeps on a device. The
+-- version goes up by one on each save, so a save from a page that missed the last one is refused.
+CREATE TABLE IF NOT EXISTS budgets (
+  user_id INTEGER PRIMARY KEY REFERENCES users(id), doc TEXT NOT NULL, version INTEGER NOT NULL);
+-- Budgets from before 0.5 are in the four tables below. They move into budgets the first time
+-- their user opens spare, and are not written to after that.
 -- The card types a user taps or drags into a month. A type made at the start has a key and
 -- no name until it is renamed, so its name follows the language switch. A new card starts at
 -- the type's usual amount, and a type marked fixed comes into each new month by itself.
@@ -83,17 +90,6 @@ CREATE TABLE IF NOT EXISTS months (
   user_id INTEGER NOT NULL REFERENCES users(id), month TEXT NOT NULL,
   saving REAL NOT NULL DEFAULT 0, PRIMARY KEY (user_id, month));
 """
-
-START_TYPES = (
-    ("in", "salary", "green"),
-    ("in", "other_income", "teal"),
-    ("out", "housing", "blue"),
-    ("out", "food", "orange"),
-    ("out", "restaurant", "red"),
-    ("out", "clothes", "purple"),
-    ("out", "transport", "yellow"),
-)
-START_ACCOUNTS = (("spending_account", 0), ("savings_account", 1))
 
 # Every word on the pages, in Norwegian and English.
 WORDS = {
@@ -168,6 +164,56 @@ WORDS = {
         "Faste utgifter og vanlige beløp endrer du i Oppsett. Annet du bruker, legger du inn i Oversikt.",
         "Change fixed costs and usual amounts in Setup. Put other spending in Overview.",
     ),
+    "start_title": ("Hvor skal budsjettet ligge?", "Where should your budget be kept?"),
+    "use_device": ("På denne enheten", "On this device"),
+    "use_device_help": (
+        "Virker uten nett. Budsjettet lagres bare her, og ingen andre ser det.",
+        "Works with no internet. The budget is kept only here, and nobody else sees it.",
+    ),
+    "use_server": ("Logg inn med konto", "Log in to an account"),
+    "use_server_help": (
+        "For deg som har fått en invitasjon. Budsjettet ligger på serveren, likt på alle enhetene dine.",
+        "For those who got an invite. The budget is kept on the server, the same on all your devices.",
+    ),
+    "no_account": ("Bruk spare uten konto", "Use spare without an account"),
+    "backup": ("Sikkerhetskopi", "Backup"),
+    "backup_help": (
+        (
+            "Budsjettet ligger bare i denne nettleseren. Sletter du nettleserdataene, forsvinner det."
+            " Lagre en kopi til fil av og til."
+        ),
+        (
+            "The budget is kept only in this browser. Clearing the browser's data deletes it."
+            " Save a copy to a file now and then."
+        ),
+    ),
+    "backup_save": ("Lagre til fil", "Save to file"),
+    "backup_open": ("Åpne fil", "Open file"),
+    "backup_replace": (
+        "Fila erstatter budsjettet på denne enheten. Fortsette?",
+        "The file replaces the budget on this device. Go on?",
+    ),
+    "backup_bad": ("Fila er ikke en sikkerhetskopi fra spare.", "That file is not a spare backup."),
+    "to_login": (
+        "Logg inn på en konto i stedet. Budsjettet her blir liggende.",
+        "Log in to an account instead. The budget here stays where it is.",
+    ),
+    "device_full": ("Nettleseren lot ikke spare lagre.", "The browser did not let spare save."),
+    "not_saved": (
+        "Ikke lagret ennå: ingen forbindelse. Det lagres ved neste endring eller når nettet er tilbake.",
+        "Not saved yet: no connection. It saves with the next change or when the network is back.",
+    ),
+    "changed_elsewhere": (
+        (
+            "Budsjettet ble endret på en annen enhet, og siden viser det nå."
+            " Den siste endringen her ble ikke lagret."
+        ),
+        (
+            "The budget was changed on another device, and the page shows that now."
+            " The last change here was not saved."
+        ),
+    ),
+    "no_server": ("Får ikke kontakt med serveren.", "Cannot reach the server."),
     "tour": ("Vis meg rundt", "Show me around"),
     "tour_next": ("Neste", "Next"),
     "tour_done": ("Ferdig", "Done"),
@@ -302,8 +348,6 @@ MONTHS = (
         "December",
     ),
 )
-SYMBOLS = {"NOK": ("kr", "NOK "), "EUR": ("€", "€"), "USD": ("$", "$")}
-
 FAILS = {}  # client address -> times of failed logins
 
 
@@ -341,19 +385,7 @@ def init_db() -> None:
         con.executescript(SCHEMA)
 
 
-def mine(table: str, rid: int | None) -> sqlite3.Row:
-    """A row of the user's own, or 404. Nobody reaches another user's data."""
-    row = (
-        db()
-        .execute(f"SELECT * FROM {table} WHERE id = ? AND user_id = ?", (rid, current_user()["id"]))
-        .fetchone()
-    )
-    if row is None:
-        abort(404)
-    return row
-
-
-# Words, numbers and money in the user's language
+# Words in the user's language
 
 
 def lang() -> str:
@@ -370,74 +402,6 @@ def t(key: str, **kw) -> str:
 @app.template_filter("date")
 def date(ts: int) -> str:
     return time.strftime("%Y-%m-%d", time.localtime(ts))
-
-
-@app.template_filter("label")
-def label(row) -> str:
-    """The name of a card type or account: the user's own name, or the starting one translated."""
-    return row["name"] or (t(row["key"]) if row["key"] in WORDS else "?")
-
-
-def number(v: float) -> str:
-    """12500 as 12 500 in Norwegian and 12,500 in English. Decimals only when there are any."""
-    v = abs(v)
-    text = f"{v:,.0f}" if abs(v - round(v)) < 0.005 else f"{v:,.2f}"
-    return text.replace(",", " ").replace(".", ",") if lang() == "nb" else text
-
-
-def money(v: float) -> str:
-    me = current_user()
-    cur = me["currency"] if me and me["currency"] in SYMBOLS else "NOK"
-    sign = "−" if v < -0.004 else ""
-    nb, en = SYMBOLS[cur]
-    return f"{sign}{number(v)} {nb}" if lang() == "nb" else f"{sign}{en}{number(v)}"
-
-
-def plain(v: float) -> str:
-    """An amount as it stands in an input box: digits only, empty for 0."""
-    return ("-" if v < -0.004 else "") + number(v) if v else ""
-
-
-def parse_amount(text: str) -> float | None:
-    """Read 32 500,50 or 32,500.50 or 1.234,5. A comma or point before one or two last digits
-    is the decimal mark; any other is a thousands mark. Empty is 0, no digits is None."""
-    s = re.sub(r"[^\d,.\-−]", "", text).replace("−", "-")
-    if not text.strip():
-        return 0.0
-    m = re.fullmatch(r"(-?)([\d.,]*?)(?:[.,](\d{1,2}))?", s)
-    if not m or not re.search(r"\d", s):
-        return None
-    whole = re.sub(r"[.,]", "", m.group(2)) or "0"
-    return float(f"{m.group(1)}{whole}.{m.group(3) or 0}")
-
-
-def shift(month: str, n: int) -> str:
-    y, m = int(month[:4]), int(month[5:]) - 1 + n
-    return f"{y + m // 12:04d}-{m % 12 + 1:02d}"
-
-
-def chart(totals: dict, year: int) -> dict:
-    """Bars for what each month of the year saved, and a line for the sum so far."""
-    vals = [totals.get(f"{year}-{m:02d}") for m in range(1, 13)]
-    have = [i for i, v in enumerate(vals) if v is not None]
-    runs, run = [], 0.0
-    for v in vals[: have[-1] + 1 if have else 0]:
-        run += v or 0
-        runs.append(run)
-    seen = [v for v in vals if v is not None] + runs
-    lo, hi = min([0.0] + seen), max([0.0] + seen)
-    span = (hi - lo) or 1.0
-
-    def y(v: float) -> float:
-        return round(10 + (hi - v) / span * 160, 1)
-
-    bars = []
-    for i, v in enumerate(vals):
-        if v is not None:
-            top, bottom = sorted((y(v), y(0)))
-            bars.append({"i": i, "x": 12 + i * 48, "y": top, "h": max(bottom - top, 1), "v": v})
-    dots = [(24 + i * 48, y(r)) for i, r in enumerate(runs)]
-    return {"bars": bars, "dots": dots, "zero": y(0), "total": run}
 
 
 # Login: password plus a six-digit code from an authenticator app
@@ -461,20 +425,12 @@ def totp_ok(secret: str | None, code: str | None) -> bool:
 
 
 def add_user(con: sqlite3.Connection, email: str, name: str, admin: bool = False) -> int:
-    """Make a user with the starting card types and accounts. The caller commits."""
+    """Make a user. The page makes the starting budget on the first visit. The caller commits."""
     email = email.strip().lower()
     uid = con.execute(
         "INSERT INTO users (email, name, is_admin, created_at) VALUES (?, ?, ?, ?)",
         (email, name.strip() or email.split("@")[0], int(admin), now()),
     ).lastrowid
-    con.executemany(
-        "INSERT INTO types (user_id, side, key, colour) VALUES (?, ?, ?, ?)",
-        [(uid, side, key, colour) for side, key, colour in START_TYPES],
-    )
-    con.executemany(
-        "INSERT INTO accounts (user_id, key, savings) VALUES (?, ?, ?)",
-        [(uid, key, savings) for key, savings in START_ACCOUNTS],
-    )
     return uid
 
 
@@ -521,18 +477,29 @@ def admin_only() -> None:
         abort(403)
 
 
+def csrf_token() -> str:
+    if "csrf" not in session:
+        session["csrf"] = secrets.token_urlsafe(32)
+    return session["csrf"]
+
+
+PUBLIC = ("login", "invite", "prefs", "demo", "static", "home", "service_worker")
+
+
 @app.before_request
 def guard():
-    if request.method == "POST":
+    """Every post carries the form token, as a field or a header. Only a few pages work
+    without a login; the budget API answers 401 so the page can send the person to log in."""
+    if request.method in ("POST", "PUT"):
         token = session.get("csrf", "")
-        if not token or not hmac.compare_digest(token, request.form.get("csrf", "")):
+        sent = request.headers.get("X-CSRF") or request.form.get("csrf", "")
+        if not token or not hmac.compare_digest(token, sent):
             abort(400)
-    if (
-        request.endpoint not in ("login", "invite", "prefs", "demo", "static")
-        and not current_user()
-    ):
-        return redirect(url_for("login"))
-    return None
+    if request.endpoint in PUBLIC or current_user():
+        return None
+    if request.path.startswith("/api/"):
+        return {"error": "login"}, 401
+    return redirect(url_for("login"))
 
 
 @app.after_request
@@ -548,20 +515,14 @@ def security_headers(resp):
 
 @app.context_processor
 def template_values():
-    if "csrf" not in session:
-        session["csrf"] = secrets.token_urlsafe(32)
     me = current_user()
     return {
-        "csrf": session["csrf"],
+        "csrf": csrf_token(),
         "me": me,
         "now": now(),
         "t": t,
         "lang": lang(),
         "theme": me["theme"] if me else session.get("theme", ""),
-        "money": money,
-        "plain": plain,
-        "months": MONTHS[LANGS.index(lang())],
-        "COLOURS": COLOURS,
         "version": __version__,
         "this_month": this_month(),
     }
@@ -644,297 +605,169 @@ def demo():
     return redirect(url_for("home"))
 
 
-# The month: a plan of what is left to spend, and an overview of every card
-
-
 def this_month() -> str:
     return time.strftime("%Y-%m")
 
 
-def join_months(con: sqlite3.Connection, uid: int, tid: int, amount: float) -> None:
-    """A type just made fixed joins the months already opened, from this month on."""
-    con.execute(
-        "INSERT INTO entries (user_id, type_id, month, amount) SELECT user_id, ?, month, ?"
-        " FROM months m WHERE user_id = ? AND month >= ? AND NOT EXISTS"
-        " (SELECT 1 FROM entries e WHERE e.type_id = ? AND e.month = m.month)",
-        (tid, amount, uid, this_month(), tid),
-    )
-
-
-def open_month(con: sqlite3.Connection, uid: int, month: str) -> None:
-    """The first time a month is opened, it gets the fixed cards and the saving of the month
-    before. A card deleted later stays deleted. Months already past are left as they are."""
-    if (
-        month < this_month()
-        or con.execute(
-            "SELECT 1 FROM months WHERE user_id = ? AND month = ?", (uid, month)
-        ).fetchone()
-    ):
-        return
-    last = con.execute(
-        "SELECT saving FROM months WHERE user_id = ? AND month < ? ORDER BY month DESC LIMIT 1",
-        (uid, month),
-    ).fetchone()
-    con.execute(
-        "INSERT INTO months (user_id, month, saving) VALUES (?, ?, ?)",
-        (uid, month, last[0] if last else 0.0),
-    )
-    con.execute(
-        "INSERT INTO entries (user_id, type_id, month, amount) SELECT user_id, id, ?, amount"
-        " FROM types WHERE user_id = ? AND fixed AND NOT hidden ORDER BY id",
-        (month, uid),
-    )
-    con.commit()
-
-
-def month_values(month: str) -> dict:
-    """Everything both screens of a month show."""
-    if not MONTH.fullmatch(month):
-        abort(404)
-    con, uid = db(), current_user()["id"]
-    open_month(con, uid, month)
-    types = con.execute(
-        "SELECT * FROM types WHERE user_id = ? AND NOT hidden ORDER BY id", (uid,)
-    ).fetchall()
-    entries = con.execute(
-        "SELECT e.*, t.side, t.key, t.name, t.colour, t.fixed FROM entries e"
-        " JOIN types t ON t.id = e.type_id WHERE e.user_id = ? AND e.month = ? ORDER BY e.id",
-        (uid, month),
-    ).fetchall()
-    savings = dict(con.execute("SELECT month, saving FROM months WHERE user_id = ?", (uid,)))
-    saving = savings.get(month, 0.0)
-    saved = sum(v for m, v in savings.items() if m <= month)
-    net = con.execute(
-        "SELECT SUM(CASE WHEN t.side = 'in' THEN e.amount ELSE -e.amount END) FROM entries e"
-        " JOIN types t ON t.id = e.type_id WHERE e.user_id = ? AND e.month <= ?",
-        (uid, month),
-    ).fetchone()[0]
-    # The savings account gets what was saved; the first other account keeps the rest.
-    accounts, rest_given = [], False
-    for a in con.execute("SELECT * FROM accounts WHERE user_id = ? ORDER BY id", (uid,)):
-        rest = not a["savings"] and not rest_given
-        rest_given = rest_given or rest
-        add = saved if a["savings"] else (net or 0) - saved if rest else 0
-        accounts.append(dict(a, balance=a["start"] + add, rest=rest))
-    total_in = sum(e["amount"] for e in entries if e["side"] == "in")
-    total_out = sum(e["amount"] for e in entries if e["side"] == "out")
-    fixed = sum(e["amount"] for e in entries if e["side"] == "out" and e["fixed"])
-    year = int(month[:4])
-    return {
-        "month": month,
-        "name": MONTHS[LANGS.index(lang())][int(month[5:]) - 1],
-        "year": year,
-        "prev": shift(month, -1),
-        "next": shift(month, 1),
-        "types": types,
-        "entries": entries,
-        "total_in": total_in,
-        "total_out": total_out,
-        "fixed": fixed,
-        "other": total_out - fixed,
-        "saving": saving,
-        "left": total_in - total_out - saving,
-        "accounts": accounts,
-        "total_acc": sum(a["balance"] for a in accounts),
-        "chart": chart({m: v for m, v in savings.items() if m <= month}, year),
-        "new": request.args.get("new", type=int),
-    }
-
-
-def back(month: str, **kw):
-    """Back to the screen the form was on."""
-    screen = "cards" if request.form.get("screen") == "cards" else "month"
-    return redirect(url_for(screen, month=month, **kw))
+# The app: one page for everyone, and each user's budget as one document
 
 
 @app.route("/")
 def home():
-    return redirect(url_for("month", month=this_month()))
+    page = render_template("app.html", words=dict(WORDS, _months=MONTHS))
+    return page, 200, {"Cache-Control": "no-cache"}
 
 
-@app.route("/m/<month>")
-def month(month):
-    return render_template("plan.html", **month_values(month))
+@app.route("/sw.js")
+def service_worker():
+    """Keeps a copy of the page on the device. It lives at the top, so it covers the whole site."""
+    js = (ROOT / "static" / "sw.js").read_text().replace("__VERSION__", __version__)
+    return js, 200, {"Content-Type": "text/javascript", "Cache-Control": "no-cache"}
 
 
-@app.route("/m/<month>/cards")
-def cards(month):
-    return render_template("month.html", **month_values(month))
+def move_old_budget(con: sqlite3.Connection, me: sqlite3.Row) -> sqlite3.Row | None:
+    """A budget from before 0.5, in the tables types, entries, accounts and months, becomes one
+    document the first time its user opens spare. None for a user who has no budget yet."""
+    uid = me["id"]
+    rows = {
+        table: con.execute(
+            f"SELECT * FROM {table} WHERE user_id = ? ORDER BY id", (uid,)
+        ).fetchall()
+        for table in ("types", "entries", "accounts")
+    }
+    if not rows["types"]:
+        return None
+    months = con.execute("SELECT month, saving FROM months WHERE user_id = ?", (uid,))
+    budget = {
+        "v": 1,
+        "currency": me["currency"],
+        "next": max(r["id"] for table in rows.values() for r in table) + 1,
+        "types": [
+            {
+                "id": r["id"],
+                "side": r["side"],
+                "key": r["key"],
+                "name": r["name"],
+                "colour": r["colour"],
+                "hidden": bool(r["hidden"]),
+                "amount": r["amount"],
+                "fixed": bool(r["fixed"]),
+            }
+            for r in rows["types"]
+        ],
+        "entries": [
+            {
+                "id": r["id"],
+                "type": r["type_id"],
+                "month": r["month"],
+                "amount": r["amount"],
+                "note": r["note"],
+            }
+            for r in rows["entries"]
+        ],
+        "accounts": [
+            {
+                "id": r["id"],
+                "key": r["key"],
+                "name": r["name"],
+                "start": r["start"],
+                "savings": bool(r["savings"]),
+            }
+            for r in rows["accounts"]
+        ],
+        "months": dict(months.fetchall()),
+    }
+    con.execute(
+        "INSERT OR IGNORE INTO budgets (user_id, doc, version) VALUES (?, ?, 1)",
+        (uid, json.dumps(budget, separators=(",", ":"))),
+    )
+    con.commit()
+    return con.execute("SELECT doc, version FROM budgets WHERE user_id = ?", (uid,)).fetchone()
 
 
-@app.route("/m/<month>/saving", methods=["POST"])
-def set_saving(month):
-    if not MONTH.fullmatch(month):
-        abort(404)
-    amount = parse_amount(request.form.get("saving", ""))
-    if amount is not None:
-        con, uid = db(), current_user()["id"]
-        open_month(con, uid, month)
-        con.execute(
-            "INSERT OR REPLACE INTO months (user_id, month, saving) VALUES (?, ?, ?)",
-            (uid, month, amount),
-        )
-        con.commit()
-    return redirect(url_for("month", month=month))
+def is_budget(budget) -> bool:
+    return (
+        isinstance(budget, dict)
+        and all(isinstance(budget.get(k), list) for k in ("types", "entries", "accounts"))
+        and isinstance(budget.get("months"), dict)
+    )
 
 
-@app.route("/m/<month>/add", methods=["POST"])
-def add_entry(month):
-    if not MONTH.fullmatch(month):
-        abort(404)
-    ty = mine("types", request.form.get("type", type=int))
+@app.route("/api/budget", methods=["GET", "PUT"])
+def api_budget():
+    """The user's budget, and a save of it. A save names the version it was made from; if
+    another save came first, it is refused and the answer carries the budget as it now is."""
+    me, con = current_user(), db()
+    row = con.execute("SELECT doc, version FROM budgets WHERE user_id = ?", (me["id"],)).fetchone()
+    row = row or move_old_budget(con, me)
+    version = row["version"] if row else 0
+    if request.method == "GET":
+        return {
+            "budget": json.loads(row["doc"]) if row else None,
+            "version": version,
+            "csrf": csrf_token(),
+            "me": {
+                "name": me["name"],
+                "email": me["email"],
+                "admin": bool(me["is_admin"]),
+                "lang": me["lang"],
+                "theme": me["theme"],
+                "currency": me["currency"],
+            },
+        }
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict) or not is_budget(data.get("budget")):
+        abort(400)
+    doc = json.dumps(data["budget"], separators=(",", ":"))
+    if data.get("version") == version:
+        if row:
+            sql = "UPDATE budgets SET doc = ?, version = version + 1 WHERE user_id = ? AND version = ?"
+            done = con.execute(sql, (doc, me["id"], version))
+        else:
+            sql = "INSERT OR IGNORE INTO budgets (user_id, doc, version) VALUES (?, ?, 1)"
+            done = con.execute(sql, (me["id"], doc))
+        if done.rowcount == 1:
+            con.commit()
+            return {"version": version + 1}
+    row = con.execute("SELECT doc, version FROM budgets WHERE user_id = ?", (me["id"],)).fetchone()
+    now_at = {
+        "budget": json.loads(row["doc"]) if row else None,
+        "version": row["version"] if row else 0,
+    }
+    return now_at, 409
+
+
+@app.route("/api/password", methods=["POST"])
+def api_password():
+    me, f = current_user(), request.form
+    new = f.get("new_password", "")
+    if not check_password_hash(me["pw_hash"], f.get("password", "")):
+        return {"ok": False, "message": t("pw_wrong")}
+    if len(new) < 12:
+        return {"ok": False, "message": t("short_pw")}
+    if new != f.get("new_password2"):
+        return {"ok": False, "message": t("pw_differ")}
     con = db()
-    eid = con.execute(
-        "INSERT INTO entries (user_id, type_id, month, amount) VALUES (?, ?, ?, ?)",
-        (ty["user_id"], ty["id"], month, ty["amount"]),
-    ).lastrowid
+    con.execute(
+        "UPDATE users SET pw_hash = ? WHERE id = ?", (generate_password_hash(new), me["id"])
+    )
     con.commit()
-    return back(month, new=eid)
-
-
-@app.route("/e/<int:eid>", methods=["POST"])
-def edit_entry(eid):
-    e, f, con = mine("entries", eid), request.form, db()
-    if f.get("delete"):
-        con.execute("DELETE FROM entries WHERE id = ?", (eid,))
-    else:
-        amount = parse_amount(f.get("amount", ""))
-        con.execute(
-            "UPDATE entries SET note = ?, amount = ? WHERE id = ?",
-            (
-                f.get("note", e["note"]).strip()[:80],
-                e["amount"] if amount is None else amount,
-                eid,
-            ),
-        )
-    con.commit()
-    return back(e["month"])
-
-
-# Setup: card types, accounts, language, currency and password
-
-
-@app.route("/setup")
-def setup():
-    con, uid = db(), current_user()["id"]
-    types = con.execute(
-        "SELECT * FROM types WHERE user_id = ? AND NOT hidden ORDER BY id", (uid,)
-    ).fetchall()
-    free = {}
-    for side in ("in", "out"):
-        used = {ty["colour"] for ty in types if ty["side"] == side}
-        free[side] = next((c for c in COLOURS if c not in used), COLOURS[0])
-    accounts = con.execute("SELECT * FROM accounts WHERE user_id = ? ORDER BY id", (uid,))
-    return render_template("setup.html", types=types, free=free, accounts=accounts.fetchall())
-
-
-@app.route("/types/new", methods=["POST"])
-def new_type():
-    f, con, uid = request.form, db(), current_user()["id"]
-    name = f.get("name", "").strip()[:40]
-    if f.get("side") in ("in", "out") and name:
-        colour = f.get("colour") if f.get("colour") in COLOURS else COLOURS[0]
-        amount = parse_amount(f.get("amount", "")) or 0.0
-        tid = con.execute(
-            "INSERT INTO types (user_id, side, name, colour, amount, fixed) VALUES (?, ?, ?, ?, ?, ?)",
-            (uid, f["side"], name, colour, amount, int(bool(f.get("fixed")))),
-        ).lastrowid
-        if f.get("fixed"):
-            join_months(con, uid, tid, amount)
-        con.commit()
-    return redirect(url_for("setup") + "#types")
-
-
-@app.route("/types/<int:tid>", methods=["POST"])
-def edit_type(tid):
-    ty, f, con = mine("types", tid), request.form, db()
-    if f.get("hide"):
-        con.execute("UPDATE types SET hidden = 1 WHERE id = ?", (tid,))
-    else:
-        name = f.get("name", "").strip()[:40]
-        if name and name != label(ty):
-            con.execute("UPDATE types SET name = ? WHERE id = ?", (name, tid))
-        if f.get("colour") in COLOURS:
-            con.execute("UPDATE types SET colour = ? WHERE id = ?", (f["colour"], tid))
-        amount = parse_amount(f.get("amount", ""))
-        amount = ty["amount"] if amount is None else amount
-        fixed = int(bool(f.get("fixed")))
-        con.execute("UPDATE types SET amount = ?, fixed = ? WHERE id = ?", (amount, fixed, tid))
-        if fixed and not ty["fixed"]:
-            join_months(con, ty["user_id"], tid, amount)
-        elif fixed and amount != ty["amount"]:
-            # A new rent from this month on: cards that still have the old amount follow.
-            con.execute(
-                "UPDATE entries SET amount = ? WHERE type_id = ? AND month >= ? AND amount = ?",
-                (amount, tid, this_month(), ty["amount"]),
-            )
-    con.commit()
-    return redirect(url_for("setup") + "#types")
-
-
-@app.route("/accounts/new", methods=["POST"])
-def new_account():
-    f, uid = request.form, current_user()["id"]
-    name = f.get("name", "").strip()[:40]
-    if name:
-        con = db()
-        first = not con.execute("SELECT 1 FROM accounts WHERE user_id = ?", (uid,)).fetchone()
-        con.execute(
-            "INSERT INTO accounts (user_id, name, start, savings) VALUES (?, ?, ?, ?)",
-            (uid, name, parse_amount(f.get("start", "")) or 0.0, int(first)),
-        )
-        con.commit()
-    return redirect(url_for("setup") + "#accounts")
-
-
-@app.route("/accounts/<int:aid>", methods=["POST"])
-def edit_account(aid):
-    a, f, con = mine("accounts", aid), request.form, db()
-    if f.get("delete"):
-        con.execute("DELETE FROM accounts WHERE id = ?", (aid,))
-    elif f.get("savings"):
-        con.execute("UPDATE accounts SET savings = (id = ?) WHERE user_id = ?", (aid, a["user_id"]))
-    else:
-        name = f.get("name", "").strip()[:40]
-        if name and name != label(a):
-            con.execute("UPDATE accounts SET name = ? WHERE id = ?", (name, aid))
-        start = parse_amount(f.get("start", ""))
-        if start is not None:
-            con.execute("UPDATE accounts SET start = ? WHERE id = ?", (start, aid))
-    con.commit()
-    return redirect(url_for("setup") + "#accounts")
+    return {"ok": True, "message": t("pw_changed")}
 
 
 @app.route("/prefs", methods=["POST"])
 def prefs():
-    """Language, currency, light or dark, and the password. Before login, only the session."""
+    """Language and light or dark for the login and admin pages. Before login, only the session."""
     me, f, con = current_user(), request.form, db()
-    for key, allowed in (
-        ("lang", LANGS),
-        ("currency", CURRENCIES),
-        ("theme", ("", "light", "dark")),
-    ):
+    for key, allowed in (("lang", LANGS), ("theme", ("", "light", "dark"))):
         if f.get(key) in allowed:
             if me:
                 con.execute(f"UPDATE users SET {key} = ? WHERE id = ?", (f[key], me["id"]))
             else:
                 session[key] = f[key]
-    if me and "password" in f:
-        new = f.get("new_password", "")
-        if not check_password_hash(me["pw_hash"], f["password"]):
-            flash(t("pw_wrong"))
-        elif len(new) < 12:
-            flash(t("short_pw"))
-        elif new != f.get("new_password2"):
-            flash(t("pw_differ"))
-        else:
-            con.execute(
-                "UPDATE users SET pw_hash = ? WHERE id = ?", (generate_password_hash(new), me["id"])
-            )
-            flash(t("pw_changed"))
     con.commit()
     nxt = f.get("next", "")
-    return redirect(nxt if re.fullmatch(r"/(?![/\\])[^\\]*", nxt) else url_for("setup"))
+    return redirect(nxt if re.fullmatch(r"/(?![/\\])[^\\]*", nxt) else url_for("home"))
 
 
 # Admin: only the admin makes users, and each gets an invite link
